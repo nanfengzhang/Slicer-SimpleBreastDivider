@@ -1,0 +1,19 @@
+# 忽略 Python 编译缓存
+__pycache__/
+*.py[cod]
+
+# 忽略系统隐藏文件
+.DS_Store
+Thumbs.db
+
+# 忽略 3D Slicer 运行时可能产生的临时文件
+*.nrrd
+*.nii
+*.nii.gz
+*.mha
+*.vtk
+
+# 极其重要：忽略庞大的 nnUNet 模型和数据集文件夹
+# 防止单卡训练/推理产生的大体积权重文件撑爆 GitHub
+Dataset*/
+nnUNetTrainer*/
