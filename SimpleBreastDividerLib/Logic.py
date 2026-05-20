@@ -483,20 +483,107 @@ if __name__ == '__main__':
             return appendFilter.GetOutput()
         return None
 
-    def generate_distance_heatmap(self, breastNode, glandNode):
+    # def generate_distance_heatmap(self, breastNode, glandNode):
+    #     import vtk
+    #     import colorsys
+        
+    #     # 1. 提取网格 (保持之前逻辑)
+    #     breastPoly = self._getUnifiedPolyData(breastNode)
+    #     glandPoly = self._getUnifiedPolyData(glandNode)
+    #     if not breastPoly or not glandPoly: raise ValueError("无法提取 3D 网格！")
+
+    #     # 2. 计算距离与法线 (确保不发黑)
+    #     distFilter = vtk.vtkDistancePolyDataFilter()
+    #     distFilter.SetInputData(0, glandPoly)  
+    #     distFilter.SetInputData(1, breastPoly) 
+    #     distFilter.SignedDistanceOff()         
+    #     distFilter.Update()
+
+    #     normalsFilter = vtk.vtkPolyDataNormals()
+    #     normalsFilter.SetInputData(distFilter.GetOutput())
+    #     normalsFilter.ComputePointNormalsOn()
+    #     normalsFilter.SplittingOff()
+    #     normalsFilter.Update()
+    #     heatmapPoly = normalsFilter.GetOutput()
+
+    #     # 3. 获取距离范围
+    #     heatmapPoly.GetPointData().SetActiveScalars("Distance")
+    #     distance_array = heatmapPoly.GetPointData().GetArray("Distance")
+    #     dist_min, dist_max = distance_array.GetRange() if distance_array else (0.0, 100.0)
+    #     if dist_max == dist_min: dist_max = dist_min + 1.0
+
+    #     # 4. 创建/更新模型节点
+    #     model_name = "Gland_Distance_Heatmap_Model"
+    #     oldNode = slicer.mrmlScene.GetFirstNodeByName(model_name)
+    #     if oldNode: slicer.mrmlScene.RemoveNode(oldNode)
+    #     modelNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLModelNode", model_name)
+    #     modelNode.SetAndObservePolyData(heatmapPoly)
+    #     modelNode.CreateDefaultDisplayNodes()
+    #     displayNode = modelNode.GetDisplayNode()
+
+    #     # 5. 配置连续颜色映射 (Procedural Color Node)
+    #     colorNodeName = "DistanceHeatmapColor_Continuous"
+    #     colorNode = slicer.mrmlScene.GetFirstNodeByName(colorNodeName)
+    #     if not colorNode:
+    #         colorNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLProceduralColorNode", colorNodeName)
+        
+    #     colorTransferFunction = vtk.vtkColorTransferFunction()
+    #     colorTransferFunction.AddRGBPoint(dist_min, 1.0, 0.0, 0.0) # 红
+    #     colorTransferFunction.AddRGBPoint(dist_min + (dist_max - dist_min) * 0.5, 0.0, 1.0, 0.0) # 绿
+    #     colorTransferFunction.AddRGBPoint(dist_max, 0.0, 0.0, 1.0) # 蓝
+    #     colorNode.SetAndObserveColorTransferFunction(colorTransferFunction)
+
+    #     # 6. 设置渲染属性
+    #     displayNode.SetScalarVisibility(True)
+    #     displayNode.SetActiveScalarName("Distance") 
+    #     displayNode.SetAndObserveColorNodeID(colorNode.GetID())
+    #     displayNode.SetScalarRangeFlag(slicer.vtkMRMLDisplayNode.UseManualScalarRange) 
+    #     displayNode.SetScalarRange(dist_min, dist_max) 
+    #     displayNode.SetInterpolation(2)
+
+    #     # ==========================================
+    #     # === 配置 3D 颜色数轴 (Color Legend) ===
+    #     # ==========================================
+    #     colorLogic = slicer.modules.colors.logic()
+    #     clNode = colorLogic.AddDefaultColorLegendDisplayNode(displayNode)
+        
+    #     if clNode:
+    #         clNode.SetName("Gland_Distance_Heatmap_Legend") 
+    #         clNode.SetTitleText("安全边界距离 (mm)")          
+    #         clNode.SetLabelFormat("%4.1f")
+            
+    #         # === 【新增功能】：调整图示到左侧，并略微缩小 ===
+    #         # X=0.02 (距离左侧边缘 2%), Y=0.15 (距离底部 15%)
+    #         clNode.SetPosition(0.02, 0.15) 
+    #         # 缩小宽度和高度 (Slicer 默认大约是 0.15 和 0.5)
+    #         clNode.SetSize(0.1, 0.4)       
+
+    #         try:
+    #             clNode.SetNumberOfLabels(5)                 
+    #         except AttributeError:
+    #             pass 
+                
+    #         clNode.SetVisibility(True)
+
+    def processDistanceHeatmap(self, targetNode, refNode):
         import vtk
         import colorsys
-        
-        # 1. 提取网格 (保持之前逻辑)
-        breastPoly = self._getUnifiedPolyData(breastNode)
-        glandPoly = self._getUnifiedPolyData(glandNode)
-        if not breastPoly or not glandPoly: raise ValueError("无法提取 3D 网格！")
+        import slicer
+        import logging
 
-        # 2. 计算距离与法线 (确保不发黑)
+        logging.info(f"开始计算空间测距: 目标层 [{targetNode.GetName()}] -> 参照层 [{refNode.GetName()}]")
+
+        # 1. 提取网格 (完全保留你的统一提取逻辑)
+        targetPoly = self._getUnifiedPolyData(targetNode)
+        refPoly = self._getUnifiedPolyData(refNode)
+        if not targetPoly or not refPoly: 
+            raise ValueError("无法提取 3D 网格！请检查输入的节点。")
+
+        # 2. 计算距离与法线 (保留你优秀的法线修复与绝对值计算)
         distFilter = vtk.vtkDistancePolyDataFilter()
-        distFilter.SetInputData(0, glandPoly)  
-        distFilter.SetInputData(1, breastPoly) 
-        distFilter.SignedDistanceOff()         
+        distFilter.SetInputData(0, targetPoly)  # 目标层：被画上热力图的模型
+        distFilter.SetInputData(1, refPoly)     # 参照层：测距的基准模型
+        distFilter.SignedDistanceOff()          # 强制绝对值距离
         distFilter.Update()
 
         normalsFilter = vtk.vtkPolyDataNormals()
@@ -512,25 +599,27 @@ if __name__ == '__main__':
         dist_min, dist_max = distance_array.GetRange() if distance_array else (0.0, 100.0)
         if dist_max == dist_min: dist_max = dist_min + 1.0
 
-        # 4. 创建/更新模型节点
-        model_name = "Gland_Distance_Heatmap_Model"
+        # 4. 创建/更新模型节点 (去硬编码，使用动态名称，防止不同目标的模型互相覆盖)
+        model_name = f"{targetNode.GetName()}_to_{refNode.GetName()}_Heatmap"
         oldNode = slicer.mrmlScene.GetFirstNodeByName(model_name)
         if oldNode: slicer.mrmlScene.RemoveNode(oldNode)
+        
         modelNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLModelNode", model_name)
         modelNode.SetAndObservePolyData(heatmapPoly)
         modelNode.CreateDefaultDisplayNodes()
         displayNode = modelNode.GetDisplayNode()
 
-        # 5. 配置连续颜色映射 (Procedural Color Node)
-        colorNodeName = "DistanceHeatmapColor_Continuous"
+        # 5. 配置连续颜色映射 (保留你手写的自定义色带: 红->绿->蓝)
+        # 注意：这里也需要动态命名，防止冲突
+        colorNodeName = f"HeatmapColor_{model_name}"
         colorNode = slicer.mrmlScene.GetFirstNodeByName(colorNodeName)
         if not colorNode:
             colorNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLProceduralColorNode", colorNodeName)
         
         colorTransferFunction = vtk.vtkColorTransferFunction()
-        colorTransferFunction.AddRGBPoint(dist_min, 1.0, 0.0, 0.0) # 红
+        colorTransferFunction.AddRGBPoint(dist_min, 1.0, 0.0, 0.0) # 红 (距离最近)
         colorTransferFunction.AddRGBPoint(dist_min + (dist_max - dist_min) * 0.5, 0.0, 1.0, 0.0) # 绿
-        colorTransferFunction.AddRGBPoint(dist_max, 0.0, 0.0, 1.0) # 蓝
+        colorTransferFunction.AddRGBPoint(dist_max, 0.0, 0.0, 1.0) # 蓝 (距离最远)
         colorNode.SetAndObserveColorTransferFunction(colorTransferFunction)
 
         # 6. 设置渲染属性
@@ -542,20 +631,16 @@ if __name__ == '__main__':
         displayNode.SetInterpolation(2)
 
         # ==========================================
-        # === 配置 3D 颜色数轴 (Color Legend) ===
+        # === 配置 3D 颜色数轴 (保留你完美的 UI 布局) ===
         # ==========================================
         colorLogic = slicer.modules.colors.logic()
         clNode = colorLogic.AddDefaultColorLegendDisplayNode(displayNode)
         
         if clNode:
-            clNode.SetName("Gland_Distance_Heatmap_Legend") 
+            clNode.SetName(f"{model_name}_Legend") 
             clNode.SetTitleText("安全边界距离 (mm)")          
             clNode.SetLabelFormat("%4.1f")
-            
-            # === 【新增功能】：调整图示到左侧，并略微缩小 ===
-            # X=0.02 (距离左侧边缘 2%), Y=0.15 (距离底部 15%)
             clNode.SetPosition(0.02, 0.15) 
-            # 缩小宽度和高度 (Slicer 默认大约是 0.15 和 0.5)
             clNode.SetSize(0.1, 0.4)       
 
             try:
