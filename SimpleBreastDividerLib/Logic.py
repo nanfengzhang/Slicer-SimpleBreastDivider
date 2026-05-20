@@ -609,17 +609,23 @@ if __name__ == '__main__':
         modelNode.CreateDefaultDisplayNodes()
         displayNode = modelNode.GetDisplayNode()
 
-        # 5. 配置连续颜色映射 (保留你手写的自定义色带: 红->绿->蓝)
-        # 注意：这里也需要动态命名，防止冲突
+        # 5. 配置连续颜色映射 (Procedural Color Node)
         colorNodeName = f"HeatmapColor_{model_name}"
         colorNode = slicer.mrmlScene.GetFirstNodeByName(colorNodeName)
         if not colorNode:
             colorNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLProceduralColorNode", colorNodeName)
         
+        # 计算距离跨度
+        span = dist_max - dist_min
+        
+        # 使用 5 锚点构建标准的专业医疗 Jet Colormap (红 -> 黄 -> 绿 -> 青 -> 蓝)
         colorTransferFunction = vtk.vtkColorTransferFunction()
-        colorTransferFunction.AddRGBPoint(dist_min, 1.0, 0.0, 0.0) # 红 (距离最近)
-        colorTransferFunction.AddRGBPoint(dist_min + (dist_max - dist_min) * 0.5, 0.0, 1.0, 0.0) # 绿
-        colorTransferFunction.AddRGBPoint(dist_max, 0.0, 0.0, 1.0) # 蓝 (距离最远)
+        colorTransferFunction.AddRGBPoint(dist_min,                1.0, 0.0, 0.0) # 0%   - 纯红 (最近)
+        colorTransferFunction.AddRGBPoint(dist_min + span * 0.25,  1.0, 1.0, 0.0) # 25%  - 明黄 (新增)
+        colorTransferFunction.AddRGBPoint(dist_min + span * 0.50,  0.0, 1.0, 0.0) # 50%  - 纯绿
+        colorTransferFunction.AddRGBPoint(dist_min + span * 0.75,  0.0, 1.0, 1.0) # 75%  - 青色/浅蓝 (新增)
+        colorTransferFunction.AddRGBPoint(dist_max,                0.0, 0.0, 1.0) # 100% - 纯蓝 (最远)
+        
         colorNode.SetAndObserveColorTransferFunction(colorTransferFunction)
 
         # 6. 设置渲染属性
